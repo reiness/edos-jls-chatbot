@@ -1,0 +1,9 @@
+.env
+/data/*
+streamlit_debug.log
+*__pycache__/
+*.pyc
+.venv
+/data/chunks/*
+/data/index/*
+/data/pdfs/*
