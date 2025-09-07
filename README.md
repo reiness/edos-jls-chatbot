@@ -88,7 +88,8 @@ Before first use, you must create the FAISS index:
 
 ```bash
 .venv\Scripts\activate
-python -m src.rag_chain  # or run a dedicated indexer script if available
+python -m scripts.ingest 
+python -m scripts.build_index 
 ```
 
 This will:

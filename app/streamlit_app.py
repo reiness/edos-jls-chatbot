@@ -7,6 +7,8 @@ import time
 import base64
 import io
 from dotenv import load_dotenv
+import re 
+import shutil
 
 # --- Ensure project root is on sys.path so `src` imports succeed ---
 ROOT = Path(__file__).resolve().parent.parent
@@ -44,7 +46,7 @@ except Exception as e:
 
 # App config
 st.set_page_config(layout="wide", page_title="SOP RAG Chatbot (LangChain + Gemini)")
-st.title("SOP RAG Chatbot — Enhanced")
+st.title("JLS SOP Chatbot")
 
 # Debug: environment snapshot
 POPPLER_PATH = os.getenv("POPPLER_PATH")
@@ -72,7 +74,9 @@ with st.sidebar:
     st.markdown("---")
     if st.button("Clear chat history"):
         st.session_state.history = []
+        # st.session_state.view_pdf_key = None # Also clear the view key
         st.success("Chat history cleared.")
+        st.rerun()
 
     st.markdown("---")
     st.write("pdf2image installed:", PDF2IMAGE_AVAILABLE)
@@ -83,132 +87,105 @@ with st.sidebar:
 if "history" not in st.session_state:
     st.session_state.history = []
 
-if "view_pdf_key" not in st.session_state:
-    st.session_state.view_pdf_key = None
+# PDF view feature is hidden, so this state is no longer needed
+# if "view_pdf_key" not in st.session_state:
+#     st.session_state.view_pdf_key = None
 
-# --- Helper: robust preview renderer with logging ---
+# --- Helper: robust preview renderer with logging (currently not used) ---
 def render_pdf_preview(src_path: str, turn_id: str, i: int, safe_hash: str):
-    """Render a PDF preview with detailed logging. Writes logs to console + file."""
-    logger.debug("render_pdf_preview called: %s", src_path)
+    """
+    Renders a PDF preview by serving it from a static directory for reliability,
+    with fallbacks for image conversion and direct download.
+    """
+    logger.debug("render_pdf_preview called for: %s", src_path)
+    
+    # 1. --- Validate the source file ---
     if not src_path or not os.path.exists(src_path):
-        logger.warning("render_pdf_preview: file not found: %s", src_path)
-        st.error("PDF not found on disk.")
+        logger.warning("File not found on disk: %s", src_path)
+        st.error("PDF source file not found.")
         return
 
+    file_name = os.path.basename(src_path)
+    
+    # 2. --- Serve the file from a static directory (Primary Method) ---
+    try:
+        # Define the static directory relative to the running script
+        static_dir = Path(__file__).parent / "static"
+        static_dir.mkdir(exist_ok=True)
+
+        # Sanitize the filename to be URL-friendly
+        safe_file_name = re.sub(r'[^\w\.\-]', '_', file_name)
+        unique_file_name = f"{safe_hash}_{safe_file_name}"
+        
+        static_file_path = static_dir / unique_file_name
+
+        # Copy the file only if it's not already there to save I/O
+        if not static_file_path.exists():
+            shutil.copy(src_path, static_file_path)
+            logger.info("Copied '%s' to static dir as '%s'", src_path, unique_file_name)
+        
+        # Generate the URL that Streamlit provides for the static file
+        file_url = f"/static/{unique_file_name}"
+
+        # Display the preview in an iframe
+        st.write(f"Previewing: {file_name}")
+        iframe = f'<iframe src="{file_url}" width="100%" height="800" style="border:none;" title="PDF Preview"></iframe>'
+        st.components.v1.html(iframe, height=800, scrolling=True)
+        logger.info("Successfully rendered iframe with static URL for: %s", file_name)
+        return # Success, so we exit the function
+
+    except Exception as e:
+        logger.exception("Primary iframe method failed for %s. Moving to fallbacks.", src_path)
+        st.warning("Browser preview failed. Trying image fallback...")
+
+    # 3. --- Fallback to Image Rendering (pdf2image) ---
     try:
         file_bytes = Path(src_path).read_bytes()
-        logger.info("Read %d bytes from %s", len(file_bytes), src_path)
-
-        # Quick magic check for PDF header
-        header = file_bytes[:8]
-        try:
-            header_text = header.decode(errors="replace")
-        except Exception:
-            header_text = str(header)
-        logger.debug("File header (first 8 bytes): %s", header_text)
-        if not header.startswith(b"%PDF"):
-            logger.warning("File does not start with %%PDF signature (may not be a PDF)")
-            st.warning("File does not appear to be a valid PDF. You can download to inspect it.")
-
-        file_size_kb = len(file_bytes) / 1024
-        file_size_mb = file_size_kb / 1024
-        file_name = os.path.basename(src_path)
-
-        st.write(f"Previewing: {file_name} — {file_size_kb:.1f} KB ({file_size_mb:.2f} MB)")
-        logger.debug("Previewing file %s size: %.2f MB", file_name, file_size_mb)
-
-        MAX_EMBED_MB = 10.0
-        if file_size_mb > MAX_EMBED_MB:
-            logger.info("File too large to embed (%s MB). Offering download.", file_size_mb)
-            st.warning(f"File is large ({file_size_mb:.1f} MB). Embedding in browser may fail. Please download or open locally.")
-            st.download_button(
-                label=f"Download {file_name}",
-                data=file_bytes,
-                file_name=file_name,
-                key=f"dl_fallback_{turn_id}_{i}_{safe_hash}",
+        
+        if PDF2IMAGE_AVAILABLE:
+            logger.debug("Attempting pdf2image conversion for %s", file_name)
+            poppler_path = POPPLER_PATH or None
+            images = convert_from_bytes(
+                file_bytes, first_page=1, last_page=1, dpi=150, poppler_path=poppler_path
             )
-            return
-
-        # Build base64 data URI
-        b64 = base64.b64encode(file_bytes).decode("utf-8")
-        iframe = f'<iframe src="data:application/pdf;base64,{b64}" width="100%" height="800" style="border:none;"></iframe>'
-
-        embed_failed = False
-        try:
-            logger.debug("Attempting to render iframe embed for %s", file_name)
-            st.components.v1.html(iframe, height=800, scrolling=True)
-            logger.info("Iframe embed succeeded for %s", file_name)
-        except Exception as e_iframe:
-            embed_failed = True
-            logger.exception("Iframe embed failed for %s", file_name)
-            # Fallback to embed tag
-            try:
-                embed = f'<embed src="data:application/pdf;base64,{b64}" width="100%" height="800" type="application/pdf">'
-                st.components.v1.html(embed, height=800)
-                logger.info("Embed tag succeeded for %s", file_name)
-                embed_failed = False
-            except Exception as e_embed:
-                logger.exception("Embed tag also failed for %s", file_name)
-                st.write("Preview failed in browser. You can download the file below.")
-                st.write("Preview exceptions:")
-                st.write(str(e_iframe))
-                st.write(str(e_embed))
-
-        # If embedding failed, show Open in new tab anchor (some browsers handle it better)
-        if embed_failed:
-            try:
-                open_in_tab_html = f'<a href="data:application/pdf;base64,{b64}" target="_blank" rel="noopener">Open PDF in new tab</a>'
-                st.components.v1.html(open_in_tab_html, height=40)
-                logger.debug("Rendered Open-in-new-tab anchor for %s", file_name)
-            except Exception:
-                logger.exception("Failed to render Open-in-new-tab anchor")
-                st.markdown(f'[Open PDF in new tab](data:application/pdf;base64,{b64})')
-
-        # If embedding failed and pdf2image is available, try rasterizing first page
-        if embed_failed and PDF2IMAGE_AVAILABLE:
-            try:
-                poppler_path = POPPLER_PATH or None
-                logger.debug("Attempting pdf2image conversion. poppler_path=%s", poppler_path)
-                images = convert_from_bytes(file_bytes, first_page=1, last_page=1, dpi=150, poppler_path=poppler_path)
+            if images:
                 img = images[0]
                 buf = io.BytesIO()
                 img.save(buf, format="PNG")
-                buf.seek(0)
-                st.image(buf, use_column_width=True)
-                st.write("(Rendered first page as an image using pdf2image)")
-                logger.info("pdf2image rendered first page for %s", file_name)
-            except Exception:
-                logger.exception("pdf2image conversion failed for %s", file_name)
-                st.write("pdf2image conversion failed. See logs for details.")
-                st.download_button(
-                    label=f"Download {file_name}",
-                    data=file_bytes,
-                    file_name=file_name,
-                    key=f"dl_fallback_{turn_id}_{i}_{safe_hash}",
-                )
-        elif embed_failed and not PDF2IMAGE_AVAILABLE:
-            logger.warning("Embedding failed and pdf2image not installed")
-            st.write("Embedding failed and pdf2image is not installed. To enable image fallback install pdf2image and poppler.")
-            st.download_button(
-                label=f"Download {file_name}",
-                data=file_bytes,
-                file_name=file_name,
-                key=f"dl_fallback_{turn_id}_{i}_{safe_hash}",
-            )
+                st.image(buf, caption=f"First page of {file_name}", use_column_width=True)
+                logger.info("Successfully rendered first page using pdf2image for %s", file_name)
+        else:
+            logger.warning("pdf2image not available. Skipping image fallback.")
+            st.info("PDF preview is not available in this browser. Please download the file.")
 
-    except Exception:
-        logger.exception("Unexpected error while rendering preview for %s", src_path)
-        st.error("Failed to render PDF preview. See logs for details.")
-        try:
-            st.download_button(
-                label=f"Download {os.path.basename(src_path)}",
-                data=Path(src_path).read_bytes() if os.path.exists(src_path) else b"",
-                file_name=os.path.basename(src_path),
-                key=f"dl_error_{turn_id}_{i}_{safe_hash}",
-            )
-        except Exception:
-            logger.exception("Failed to provide download fallback")
+    except Exception as e:
+        logger.exception("pdf2image fallback failed for %s", src_path)
+        st.error("Could not render the PDF as an image.")
+    
+    # 4. --- Final Fallback: Direct Download ---
+    st.write("You can download the file to view it locally.")
+    try:
+        file_bytes = Path(src_path).read_bytes()
+        st.download_button(
+            label=f"Download {file_name}",
+            data=file_bytes,
+            file_name=file_name,
+            key=f"dl_final_fallback_{turn_id}_{i}_{safe_hash}",
+        )
+    except Exception as e:
+        logger.exception("Failed to create final download button for %s", src_path)
+        st.error(f"Could not prepare {file_name} for download.")
 
+
+# --- New: snippet cleaner ---
+def complete_sentence(snippet: str) -> str:
+    """Ensure snippet ends with a sentence for display."""
+    if not snippet:
+        return snippet
+    snippet = snippet.strip()
+    if snippet.endswith(('.', '!', '?', '."', '!"', '?"')):
+        return snippet
+    return snippet + "..."
 
 # --- Input area ---
 query = st.text_input("Ask a question about SOPs", "")
@@ -227,20 +204,25 @@ if ask_pressed and query.strip():
     answer = res.get("answer", "")
     sources = res.get("sources", [])
 
-    # Attach timestamp for stable keys and ordering
+    # When a new question is asked, hide any open PDF.
+    # st.session_state.view_pdf_key = None
+
     st.session_state.history.append({
         "query": query,
         "answer": answer,
         "sources": sources,
         "ts": time.time(),
     })
+    # No rerun here, we want the new answer to show up naturally.
 
-# --- Conversation display (most recent first) ---
+
+# --- Conversation display ---
 history = st.session_state.history
 if not history:
     st.info("No conversation yet. Ask a question to get started.")
 else:
-    for turn_idx in range(len(history) - 1, max(-1, len(history) - 11), -1):
+    # Iterate backwards to show the most recent conversation first
+    for turn_idx in range(len(history) - 1, -1, -1):
         turn = history[turn_idx]
         q_text = turn.get("query", "")
         a_text = turn.get("answer", "")
@@ -249,57 +231,46 @@ else:
 
         turn_id = hashlib.sha1(f"{q_text}_{ts}".encode()).hexdigest()[:10]
 
-        st.markdown(f"**Q:** {q_text}")
-        st.markdown(f"**A:** {a_text}")
+        with st.container():
+            st.markdown(f"**Q:** {q_text}")
+            st.markdown(f"**A:** {a_text}")
 
-        if sources:
-            st.markdown("**Sources:**")
-            for i, s in enumerate(sources):
-                src_path = s.get("source")
-                page = s.get("page")
-                snippet = s.get("snippet") or ""
+            if sources:
+                st.markdown("**Sources:**")
+                for i, s in enumerate(sources):
+                    src_path = s.get("source")
+                    page = s.get("page")
+                    snippet = complete_sentence(s.get("snippet") or "")
 
-                st.markdown(f"{i+1}. `{src_path}` — page: {page}")
-                st.write(snippet)
+                    st.markdown(f"{i+1}. `{src_path}` — page: {page}")
+                    st.write(snippet)
 
-                col_view, col_download = st.columns([1, 4])
-
-                abs_path = os.path.abspath(src_path) if src_path else ""
-                safe_hash = hashlib.sha1(abs_path.encode()).hexdigest()[:12]
-                view_key = f"view_{turn_id}_{i}_{safe_hash}"
-                download_key = f"download_{turn_id}_{i}_{safe_hash}"
-
-                with col_view:
-                    if src_path and os.path.exists(src_path):
-                        if st.button(f"View PDF {i+1}", key=view_key):
-                            st.session_state.view_pdf_key = view_key
-                            logger.debug("View button pressed: %s (turn %s index %d)", src_path, turn_id, i)
-                    else:
-                        st.write("PDF not found")
-
-                with col_download:
+                    abs_path = os.path.abspath(src_path) if src_path else ""
+                    safe_hash = hashlib.sha1(abs_path.encode()).hexdigest()[:12]
+                    
+                    # --- PDF VIEW FEATURE HIDDEN ---
+                    # All logic for the "View PDF" button and rendering is removed.
+                    # Only the download button remains.
+                    
                     if src_path and os.path.exists(src_path):
                         try:
-                            file_bytes = Path(src_path).read_bytes()
+                            with open(src_path, "rb") as f:
+                                file_bytes = f.read()
                             file_name = os.path.basename(src_path)
-                            st.write(f"{file_name} — {len(file_bytes)/1024:.1f} KB")
                             st.download_button(
                                 label=f"Download {file_name}",
                                 data=file_bytes,
                                 file_name=file_name,
-                                key=download_key,
+                                key=f"download_{turn_id}_{i}_{safe_hash}",
                             )
                         except Exception:
                             logger.exception("Unable to prepare download for %s", src_path)
                             st.error(f"Unable to prepare download for {src_path}")
                     else:
-                        st.write("PDF not available for download.")
-
-                # Render preview if requested
-                if st.session_state.view_pdf_key == view_key:
-                    render_pdf_preview(src_path, turn_id, i, safe_hash)
+                        st.write("PDF not available.")
 
         st.markdown("---")
 
-# --- Footer / small help ---
+
 st.caption("Tip: If you switch embedding models or re-run ingestion, press 'Rebuild index (force)' in the sidebar.")
+

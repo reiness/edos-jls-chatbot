@@ -7,3 +7,4 @@ streamlit_debug.log
 /data/chunks/*
 /data/index/*
 /data/pdfs/*
+/app/static/*
