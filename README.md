@@ -12,7 +12,7 @@ Built with **LangChain**, **Google Gemini API**, **FAISS vector search**, and **
 - **Gemini API** for both embedding and answer generation.
 - **Interactive Streamlit UI** with:
   - Adjustable `Top K` retrieval slider.
-  - PDF preview (inline, new tab, or image fallback via `pdf2image`).
+  - PDF preview (inline, new tab, or image fallback via `pdf2image`). # still bug-fixing WIP
   - Downloadable source PDFs.
   - Chat history display and reset.
   - Force index rebuild button.

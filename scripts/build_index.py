@@ -27,18 +27,55 @@ def build_index(force_rebuild: bool = True):
         raise FileNotFoundError(f"Chunks missing at {chunks_file}. Run ingest first.")
 
     docs = []
+    print("[build_index] Preparing documents from chunks...")
     with open(chunks_file, "r", encoding="utf-8") as fin:
         for line in fin:
             m = json.loads(line)
-            meta = {"source": m.get("source"), "page": m.get("page"), "heading": m.get("heading"), "chunk_id": m.get("id")}
-            docs.append(Document(page_content=m.get("text",""), metadata=meta))
+            
+            # --- CRITICAL MODIFICATION FOR SOP STRUCTURE STARTS HERE ---
+            
+            # 1. Extract all structured fields from the chunk.
+            source = m.get("source", "Unknown Document")
+            heading = m.get("heading", "No Section")
+            author = m.get("author", "Unknown Author")
+            date = m.get("date", "Unknown Date")
+            related_sops = m.get("related_sops", []) # Expecting a list
+            text = m.get("text", "")
+            
+            # 2. Create the "perfect" string for the embedding, mirroring the SOP anatomy.
+            # This gives the embedding model the full context for maximum precision.
+            content_to_embed = (
+                f"SOP Title: {source}\n"
+                f"Author: {author}\n"
+                f"Date: {date}\n"
+                f"Section: {heading}\n\n"
+                f"Content: {text}"
+            )
+            
+            # 3. Create the enriched metadata for filtering, citation, and linking.
+            # We store everything, especially the relational 'related_sops' data.
+            meta = {
+                "source": source,
+                "heading": heading,
+                "author": author,
+                "date": date,
+                "related_sops": related_sops,
+                "page": m.get("page"), 
+                "chunk_id": m.get("id"),
+                "original_text": text # Keep the clean text for display.
+            }
+            
+            # 4. Create the LangChain Document.
+            docs.append(Document(page_content=content_to_embed, metadata=meta))
+            
+            # --- CRITICAL MODIFICATION ENDS HERE ---
 
     # Use GeminiEmbedder (langchain-compatible)
     emb = GeminiEmbedder()
-    print("[build_index] creating FAISS index (this may take a while)...")
+    print(f"[build_index] Creating FAISS index with {len(docs)} full-context documents (this may take a while)...")
     vs = FAISS.from_documents(docs, emb)
     vs.save_local(str(faiss_path))
-    print("[build_index] saved index to", faiss_path)
+    print("[build_index] Saved knowledge graph index to", faiss_path)
 
 if __name__ == "__main__":
     build_index(force_rebuild=True)

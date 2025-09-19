@@ -57,7 +57,7 @@ logger.debug("PDF_FOLDER=%s", os.getenv("PDF_FOLDER", "./data/pdfs"))
 # --- Sidebar ---
 with st.sidebar:
     st.header("Options")
-    top_k = st.slider("Top K", 1, 10, 5)
+    top_k = st.slider("Number of sources to look", 1, 10, 5)
 
     if st.button("Rebuild index (force)"):
         with st.spinner("Rebuilding vectorstore (this can take a while)..."):
