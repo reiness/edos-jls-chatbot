@@ -1,10 +1,16 @@
 .env
+.streamlit/secrets.toml
 /data/*
 streamlit_debug.log
-*__pycache__/
+__pycache__/
 *.pyc
+*.pyo
+*.pyd
 .venv
 /data/chunks/*
 /data/index/*
 /data/pdfs/*
 /app/static/*
+credentials.json
+.DS_Store
+token.json

@@ -1,135 +1,148 @@
+
 # SOP RAG Chatbot (LangChain + Gemini + Streamlit)
 
-A Retrieval-Augmented Generation (RAG) chatbot designed for querying thousands of company SOPs quickly and accurately.  
-Built with **LangChain**, **Google Gemini API**, **FAISS vector search**, and **Streamlit** for an interactive web UI.
+A production-ready, Retrieval-Augmented Generation (RAG) chatbot designed to accurately answer questions from a large knowledge base of company Standard Operating Procedures (SOPs).
 
----
+This project is built with a modern, modular Python structure and features an end-to-end data pipeline that automatically downloads, processes, and indexes documents from a Google Sheet. The interactive front-end is built with **Streamlit**.
 
-## Features
+-----
 
-- **RAG-based QA** using company SOP PDFs as a knowledge base.
-- **FAISS Vectorstore** for fast similarity search.
-- **Gemini API** for both embedding and answer generation.
-- **Interactive Streamlit UI** with:
-  - Adjustable `Top K` retrieval slider.
-  - PDF preview (inline, new tab, or image fallback via `pdf2image`). # still bug-fixing WIP
-  - Downloadable source PDFs.
-  - Chat history display and reset.
-  - Force index rebuild button.
-- **Detailed logging** to help debug embedding, retrieval, and PDF viewing issues.
+## ✨ Key Features
 
----
+  - **Automated Data Pipeline:** Downloads documents directly from a Google Sheet, processes them, and builds the knowledge base with a series of simple commands.
+  - **Metadata-Driven Ingestion:** Uses a `.metadata.json` file to enrich the knowledge base with crucial context like document titles, authors, and sections.
+  - **Advanced Semantic Chunking:** Employs `RecursiveCharacterTextSplitter` to create meaningful, coherent text chunks that respect paragraph and sentence boundaries.
+  - **Context-Enriched Embeddings:** Injects metadata (title, section, etc.) into the text before embedding, leading to highly accurate document retrieval.
+  - **Smart Retrieval:** Uses a **Relevance Score Threshold** instead of a fixed number of sources, ensuring that only the most relevant information is used to generate answers.
+  - **Clean Streamlit UI:** A user-friendly interface for asking questions, adjusting retrieval settings, and exploring rich, clickable source citations.
 
-## 1. Prerequisites
+-----
 
-- **Python 3.10+**
-- **pip** and **virtualenv**
-- **Google Gemini API Key** (or Vertex AI setup)
-- **Poppler** (required for PDF-to-image preview fallback)
-- (Windows) **Visual C++ Redistributable** (for Poppler to work)
+## 📂 Project Structure
 
----
+The project is organized into a standard Python package structure for clarity and scalability.
 
-## 2. Install & Setup
+```
+JLS-Chatbot/
+│
+├── .streamlit/
+│   └── secrets.toml         # For deployment secrets
+│
+├── data/
+│   ├── source_documents/    # Raw downloaded PDFs and their metadata
+│   └── processed/           # The output of your data pipeline
+│
+├── src/
+│   └── jls_chatbot/         # The main Python package
+│       ├── pipeline/        # Data pipeline scripts
+│       ├── core/            # Core components (RAG chain, embedder)
+│       └── app.py           # The Streamlit app
+│
+├── .env                     # Local secrets and config
+├── .gitignore
+├── README.md
+└── requirements.txt
+```
+
+-----
+
+## 🛠️ Step 1: Installation & Setup
+
+#### Prerequisites
+
+  - Python 3.10+
+  - Git
+  - A Google Account with access to the target Google Sheet.
+
+#### Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/sop-rag-chatbot.git
-cd sop-rag-chatbot
+# 1. Clone the repository
+git clone https://github.com/your-org/jls-chatbot.git
+cd jls-chatbot
 
-# Create and activate a virtual environment
+# 2. Create and activate a virtual environment
 python -m venv .venv
-.venv\Scripts\activate   # Windows
-# source .venv/bin/activate  # macOS/Linux
+# On Windows:
+.venv\Scripts\activate
+# On macOS/Linux:
+# source .venv/bin/activate
 
-# Install dependencies
+# 3. Install dependencies
 pip install -r requirements.txt
 ```
 
-## 3. Configure Environment Variables
-Create a .env file in the project root:
+#### Configuration
 
-```bash
+Create a `.env` file in the project root by copying `.env.example`. This file is for **local development only**.
+
+```dotenv
+# .env
+
 # --- API Keys ---
-GEMINI_API_KEY="your_gemini_api_key"
+# Used by all scripts that call the Gemini API
+GEMINI_API_KEY="your_gemini_api_key_here"
 
-# --- Models ---
-EMBEDDING_MODEL=gemini-embedding-001
-GENERATION_MODEL=gemini-2.5-flash
-
-# --- Local directories ---
-PDF_FOLDER=./data/pdfs
-CHUNKS_DIR=./data/chunks
-INDEX_DIR=./data/index
-PORT=8501
-
-# --- PDF Preview ---
-POPPLER_PATH=C:\\poppler-24.08.0\\Library\\bin
+# --- Data Directories (defaults are recommended) ---
+# Your downloader script will create and place files here
+PDF_FOLDER=./data/source_documents
+# Your pipeline will create and place processed files here
+CHUNKS_DIR=./data/processed/chunks
+INDEX_DIR=./data/processed/index
 ```
 
-Notes:
-* POPPLER_PATH must point to the bin folder of Poppler installation.
+-----
 
-* On macOS/Linux, you may omit POPPLER_PATH if Poppler is in your system PATH.
+## ⚙️ Step 2: The Data Pipeline Workflow
 
-## 4. Add SOP PDFs
-Put all your SOP PDFs inside the folder specified in .env:
+This three-step process converts your documents from a Google Sheet into a searchable knowledge base. Run these commands from the **project's root directory**.
+
+#### 2.1: Download Documents
+
+This script connects to Google Sheets, downloads all linked Google Docs as PDFs, and creates the crucial `.metadata.json` file.
+
+**First-Time Setup:** Place your `credentials.json` file (from Google Cloud) in the project's root directory before the first run. The script will guide you through a one-time browser authentication.
 
 ```bash
-data/
-  pdfs/
-    SOP1.pdf
-    SOP2.pdf
-    ...
+python -m src.jls_chatbot.pipeline.download
 ```
 
-## 5. Build the Vectorstore
-Before first use, you must create the FAISS index:
+#### 2.2: Ingest & Embed Documents
+
+This script reads `.metadata.json`, processes each PDF, chunks the text, and calls the Gemini API to create embeddings for each chunk.
 
 ```bash
-.venv\Scripts\activate
-python -m scripts.ingest 
-python -m scripts.build_index 
+python -m src.jls_chatbot.pipeline.ingest
 ```
 
-This will:
-1. Read all PDFs from PDF_FOLDER.
+#### 2.3: Build the Search Index
 
-2. Extract text, chunk it, and embed it using EMBEDDING_MODEL.
-
-3. Save FAISS index to INDEX_DIR.
-
-## 6. Run the App
-```bash
-.venv\Scripts\activate
-streamlit run app/streamlit_app.py
-```
-Then open http://localhost:8501 in your browser.
-
-
-## 7. Using the Chatbot
-1. Enter a question about any SOP.
-
-2. Adjust Top K to control how many relevant chunks are retrieved.
-
-3. Click Ask.
-
-4. View sources with View PDF (inline or fallback).
-
-5. Download PDFs with Download.
-
-6. Use Rebuild index (force) in the sidebar if you update or add SOP PDFs.
-
-
-## 8. Logging
-All logs are written to both console and:
+This final step takes the chunks and embeddings and builds the fast, searchable FAISS vector index.
 
 ```bash
-streamlit_debug.log
+python -m src.jls_chatbot.pipeline.build_index
 ```
-Logs include:
-* FAISS search details
-* PDF reading and size info
-* PDF preview errors and fallbacks
-* pdf2image conversion status
 
+Your knowledge base is now ready\! You only need to re-run this pipeline when your SOPs change.
+
+-----
+
+## 🚀 Step 3: Running the Chatbot
+
+Launch the Streamlit web application with the following command from the project's root directory:
+
+```bash
+streamlit run src/jls_chatbot/app.py
+```
+
+Navigate to the local URL provided in your terminal to start asking questions\!
+
+-----
+
+## ☁️ Step 4: Deployment
+
+You can deploy this app for free on Streamlit Community Cloud.
+
+1.  **Create a `secrets.toml` file:** In a new `.streamlit` folder, create a `secrets.toml` file containing your `GEMINI_API_KEY`. This file should be listed in your `.gitignore`.
+2.  **Push to GitHub:** Push your entire project—including the populated `data/processed` folder—to a public GitHub repository.
+3.  **Deploy:** Go to [share.streamlit.io](https://share.streamlit.io/), link your GitHub account, and deploy the repository. Paste the contents of your `secrets.toml` file into the app's secrets manager in the Streamlit dashboard.
