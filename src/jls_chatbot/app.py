@@ -8,6 +8,7 @@ import json
 import collections
 from dotenv import load_dotenv
 import streamlit as st
+from cryptography.fernet import Fernet
 
 # --- Robust Path and Import Setup ---
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -49,6 +50,48 @@ def check_password():
     return False
 
 # --- Page Rendering Functions ---
+
+def render_knowledge_base_page():
+    """Renders the Current Knowledge Base page by decrypting the manifest file."""
+    st.header("Current Knowledge Base 📚")
+    
+    # --- ✨ CHANGED: Logic to decrypt the manifest ---
+    manifest_path = PROJECT_ROOT / "data" / "processed" / "knowledge_base_manifest.enc"
+    encryption_key = st.secrets.get("MANIFEST_KEY")
+
+    if not encryption_key:
+        st.error("Encryption key is not configured. Cannot display Knowledge Base.")
+        return
+
+    if manifest_path.exists():
+        try:
+            cipher_suite = Fernet(encryption_key.encode())
+            
+            # 1. Read the encrypted bytes
+            with open(manifest_path, "rb") as f:
+                encrypted_data = f.read()
+            
+            # 2. Decrypt the bytes and decode back to a JSON string
+            decrypted_json_string = cipher_suite.decrypt(encrypted_data).decode('utf-8')
+            
+            # 3. Load the JSON string into a Python object
+            docs_manifest = json.loads(decrypted_json_string)
+            
+            # The rest of the display logic is the same
+            sections = collections.defaultdict(list)
+            for doc in docs_manifest:
+                sections[doc.get("section", "Uncategorized")].append(doc)
+            st.write(f"The chatbot has knowledge of **{len(docs_manifest)}** documents across **{len(sections)}** sections.")
+            st.markdown("---")
+            for section_name, docs in sorted(sections.items()):
+                with st.expander(f"**{section_name}** ({len(docs)} documents)"):
+                    for doc in sorted(docs, key=lambda x: x.get('title', '')):
+                        st.markdown(f"- [{doc.get('title')}]({doc.get('link')})")
+
+        except Exception as e:
+            st.error(f"Failed to decrypt or read the knowledge base manifest. Error: {e}")
+    else:
+        st.error("The knowledge_base_manifest.enc file was not found. Please run the data pipeline first.")
 
 def render_chatbot_page():
     """Renders the main chatbot interface."""
@@ -122,6 +165,7 @@ def render_updates_page():
     # ... (function content is the same)
     st.header("Possible Future Updates 🚀")
     st.markdown("""
+
     Right now, the bot is still in a **beta version** because it doesn't cover all of our SOPs just yet. Most of the documents in its knowledge base are the ones that new interns typically read during onboarding. But, in the future, I'll be working on:
 
     #### 1. Cover More SOPs
@@ -132,7 +176,16 @@ def render_updates_page():
 
     #### 3. Make it a Chrome Extension
     This is the long-term dream! It would involve thinking about a proper backend and how to deploy it with minimal cost. I don't want to take the easy way out and just rent a server, because the operational cost would bleed us dry as the company grows. The goal is to find a smart, scalable, and cost-effective solution.
-    """)
+
+    ---
+
+    ### Want to help or build your own?
+
+    Feeling inspired? If you want to collaborate on any of these ideas or even take this code and make your own version for another project, feel free! The entire project is open-source.
+
+    You can always check out the code on my GitHub Repo:
+    *https://github.com/reiness/edos-jls-chatbot*
+                """)
 
 def render_knowledge_base_page():
     # ... (function content is the same)
