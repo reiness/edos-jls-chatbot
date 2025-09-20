@@ -132,7 +132,7 @@ def render_chatbot_page():
     for turn in st.session_state.history:
         with st.chat_message(name="user", avatar="👤"):
             st.write(turn["query"])
-        with st.chat_message(name="assistant", avatar="🤖"):
+        with st.chat_message(name="assistant", avatar="src/jls_chatbot/assets/cmaid.png"):
             st.markdown(turn["answer"])
             sources = turn.get("sources", [])
             if sources:
