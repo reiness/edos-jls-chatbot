@@ -1,8 +1,3 @@
-Of course. This is the final and most important piece of documentation. A great `README` makes a project usable for everyone.
-
-Here is the fully updated `README.md`, incorporating all the features and fixes we've implemented, including the new security measures, and structured for both regular users and developers.
-
------
 
 # JLS SOP Chatbot (v1.0.0-beta)
 
