@@ -36,7 +36,7 @@ def check_password():
         return False
 
     with st.form("password_form"):
-        st.title("JLS Company SOP Chatbot 🤖")
+        st.title("Sophie - JLS SOP Chatbot")
         st.markdown("---")
         password = st.text_input("Please enter the password to continue", type="password")
         submitted = st.form_submit_button("Submit")
@@ -95,7 +95,7 @@ def render_knowledge_base_page():
 
 def render_chatbot_page():
     """Renders the main chatbot interface."""
-    st.title("JLS Company SOP Chatbot 🤖")
+    st.title("Sophie - JLS SOP Chatbot")
 
     with st.sidebar:
         st.header("Chatbot Options")
@@ -132,7 +132,7 @@ def render_chatbot_page():
     for turn in st.session_state.history:
         with st.chat_message(name="user", avatar="👤"):
             st.write(turn["query"])
-        with st.chat_message(name="assistant", avatar="src/jls_chatbot/assets/cmaid.png"):
+        with st.chat_message(name="assistant", avatar="src/jls_chatbot/assets/sophie-ava.png"):
             st.markdown(turn["answer"])
             sources = turn.get("sources", [])
             if sources:

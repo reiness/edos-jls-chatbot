@@ -1,5 +1,9 @@
 
-# JLS SOP Chatbot (v1.0.0-beta)
+# Sophie - JLS SOP Chatbot (v1.0.0-beta)
+
+<p align="center">
+  <img src="src\jls_chatbot\assets\sophie-bg.jpg" alt="Sophie - JLS SOP Chatbot Preview" width="700">
+</p>
 
 A production-ready, Retrieval-Augmented Generation (RAG) chatbot designed to accurately answer questions from a large knowledge base of company Standard Operating Procedures (SOPs).
 
@@ -7,9 +11,9 @@ This project features an end-to-end data pipeline that processes documents from 
 
 ## Table of Contents
 
-- [JLS SOP Chatbot (v1.0.0-beta)](#jls-sop-chatbot-v100-beta)
+- [Sophie - JLS SOP Chatbot (v1.0.0-beta)](#sophie---jls-sop-chatbot-v100-beta)
   - [Table of Contents](#table-of-contents)
-- [JLS SOP Chatbot: User Guide](#jls-sop-chatbot-user-guide)
+- [Sophie - JLS SOP Chatbot: User Guide](#sophie---jls-sop-chatbot-user-guide)
   - [How to Use the Chatbot](#how-to-use-the-chatbot)
 - [JLS SOP Chatbot: Developer \& Admin Guide](#jls-sop-chatbot-developer--admin-guide)
   - [✨ Key Features](#-key-features)
@@ -26,7 +30,7 @@ This project features an end-to-end data pipeline that processes documents from 
   - [🚨 Troubleshooting](#-troubleshooting)
 -----
 
-# JLS SOP Chatbot: User Guide
+# Sophie - JLS SOP Chatbot: User Guide
 
 This guide is for internal team members who want to ask questions and get answers from the chatbot.
 
