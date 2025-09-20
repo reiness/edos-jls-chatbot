@@ -188,23 +188,48 @@ def render_updates_page():
                 """)
 
 def render_knowledge_base_page():
-    # ... (function content is the same)
+    """Renders the Current Knowledge Base page by decrypting the manifest file."""
     st.header("Current Knowledge Base 📚")
-    metadata_path = PROJECT_ROOT / "data" / "source_documents" / ".metadata.json"
-    if metadata_path.exists():
-        with open(metadata_path, "r", encoding="utf-8") as f:
-            docs_metadata = json.load(f)
-        sections = collections.defaultdict(list)
-        for doc in docs_metadata:
-            sections[doc.get("section", "Uncategorized")].append(doc)
-        st.write(f"The chatbot currently has knowledge of **{len(docs_metadata)}** documents across **{len(sections)}** sections.")
-        st.markdown("---")
-        for section_name, docs in sorted(sections.items()):
-            with st.expander(f"**{section_name}** ({len(docs)} documents)"):
-                for doc in sorted(docs, key=lambda x: x['title']):
-                    st.markdown(f"- [{doc.get('title')}]({doc.get('link')})")
+    
+    manifest_path = PROJECT_ROOT / "data" / "processed" / "knowledge_base_manifest.enc"
+    encryption_key = st.secrets.get("MANIFEST_KEY")
+
+    if not encryption_key:
+        st.error("Encryption key is not configured. Cannot display Knowledge Base.")
+        return
+
+    if manifest_path.exists():
+        try:
+            cipher_suite = Fernet(encryption_key.encode())
+            
+            # Read the encrypted bytes from the file
+            with open(manifest_path, "rb") as f:
+                encrypted_data = f.read()
+            
+            # Decrypt the bytes and decode back to a JSON string
+            decrypted_json_string = cipher_suite.decrypt(encrypted_data).decode('utf-8')
+            
+            # Load the JSON string into a Python object
+            docs_manifest = json.loads(decrypted_json_string)
+            
+            # The rest of the display logic remains the same
+            sections = collections.defaultdict(list)
+            for doc in docs_manifest:
+                sections[doc.get("section", "Uncategorized")].append(doc)
+            
+            st.write(f"The chatbot has knowledge of **{len(docs_manifest)}** documents across **{len(sections)}** sections.")
+            st.markdown("---")
+
+            for section_name, docs in sorted(sections.items()):
+                with st.expander(f"**{section_name}** ({len(docs)} documents)"):
+                    for doc in sorted(docs, key=lambda x: x.get('title', '')):
+                        st.markdown(f"- [{doc.get('title')}]({doc.get('link')})")
+
+        except Exception as e:
+            st.error(f"Failed to decrypt or read the knowledge base manifest. Error: {e}")
+            
     else:
-        st.error("The .metadata.json file was not found. Please run the data pipeline first.")
+        st.error("The knowledge_base_manifest.enc file was not found. Please run the data pipeline first.")
 
 
 # --- Main App Logic ---
