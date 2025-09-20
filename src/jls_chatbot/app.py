@@ -107,7 +107,7 @@ def render_intro_page():
     # ... (function content is the same)
     st.header("Introduction 👋")
     st.markdown("""
-    Hey there! My name is **Edo Afrianto**, an intern from Indonesia, and I'm the one who built this chatbot. I really love doing stuff like this—messing with AI, building tools, and trying to make our work life a little bit easier.
+    Hey there! My name is **Edo Afrianto**, an intern from Indonesia, and I'm the one who built this chatbot. I really love doing stuff like this, messing with AI, building tools (and also breaks them), and trying to make our work life a little bit easier.
 
     This whole project is running on Streamlit's free community cloud, so I'm paying exactly **$0 in development costs**, except for my electricity bill, haha.
 

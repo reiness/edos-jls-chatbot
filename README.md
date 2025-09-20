@@ -163,5 +163,5 @@ streamlit run src/jls_chatbot/app.py
 You can deploy this app for free on Streamlit Community Cloud.
 
 1.  **Prepare Secrets:** Create a `.streamlit/secrets.toml` file locally and add your `GEMINI_API_KEY` to it. **Add this file to `.gitignore`.**
-2.  **Push to GitHub:** Push your entire project—including the populated `data/processed` folder—to a public GitHub repository.
+2.  **Push to GitHub:** Push your entire project—including the populated `data/processed` folder to a public GitHub repository.
 3.  **Deploy:** Go to [share.streamlit.io](https://share.streamlit.io/), link your GitHub account, and deploy the repository. In the app's settings, copy and paste the contents of your local `secrets.toml` file into the Secrets manager.
