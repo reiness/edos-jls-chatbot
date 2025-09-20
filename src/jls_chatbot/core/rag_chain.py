@@ -13,10 +13,17 @@ from langchain_core.runnables import RunnablePassthrough, RunnableLambda, Runnab
 from dotenv import load_dotenv
 
 # --- Define Project Root and Data Paths Robustly ---
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# This file is 3 levels deep from src (core/jls_chatbot/src), so we go up 3 parents to get to the project root.
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 INDEX_DIR = Path(os.getenv("INDEX_DIR", PROJECT_ROOT / "data" / "processed" / "index"))
 if not INDEX_DIR.exists():
-    raise FileNotFoundError(f"Index directory not found at {INDEX_DIR}. Please run build_index.py first.")
+    raise FileNotFoundError(f"Index directory not found at {INDEX_DIR}. Please run build_index.py and ensure the 'data/processed' folder is pushed to your repo.")
+
+# Add src to path to allow sibling imports
+SRC_DIR = PROJECT_ROOT / "src"
+import sys
+if str(SRC_DIR) not in sys.path:
+    sys.path.append(str(SRC_DIR))
 
 from jls_chatbot.core.embedder import GeminiEmbedder
 
